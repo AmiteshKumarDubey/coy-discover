@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import getDb from '@/lib/db';
-import { seedIfEmpty } from '@/lib/seed';
+import { ensureDb } from '@/lib/seed';
 import type { Profile } from '@/types';
 
 interface RawProfile {
-  id: number;
+  id: number | bigint;
   name: string;
-  age: number;
+  age: number | bigint;
   photo: string;
   bio: string;
   city: string;
@@ -15,25 +15,35 @@ interface RawProfile {
 
 function parseProfile(raw: RawProfile): Profile {
   return {
-    ...raw,
+    id: Number(raw.id),
+    name: raw.name,
+    age: Number(raw.age),
+    photo: raw.photo,
+    bio: raw.bio,
+    city: raw.city,
     interests: JSON.parse(raw.interests) as string[],
   };
 }
 
 export async function GET(): Promise<NextResponse> {
-  seedIfEmpty();
-  const db = getDb();
+  try {
+    await ensureDb();
+    const db = getDb();
 
-  // Strictly mutual: user 0 liked them AND they liked user 0
-  const rows = db
-    .prepare(
+    // Strictly mutual: user 0 liked them AND they liked user 0.
+    // One-sided incoming likes are NEVER exposed.
+    const result = await db.execute(
       `SELECT p.* FROM profiles p
-       INNER JOIN swipes s1 ON s1.swiper_id = 0 AND s1.target_id = p.id AND s1.direction = 'like'
-       INNER JOIN swipes s2 ON s2.swiper_id = p.id AND s2.target_id = 0 AND s2.direction = 'like'`
-    )
-    .all() as RawProfile[];
+       INNER JOIN swipes s1
+         ON s1.swiper_id = 0 AND s1.target_id = p.id AND s1.direction = 'like'
+       INNER JOIN swipes s2
+         ON s2.swiper_id = p.id AND s2.target_id = 0 AND s2.direction = 'like'`
+    );
 
-  const matches: Profile[] = rows.map(parseProfile);
-  return NextResponse.json({ matches });
+    const matches: Profile[] = (result.rows as unknown as RawProfile[]).map(parseProfile);
+    return NextResponse.json({ matches });
+  } catch (err) {
+    console.error('[GET /api/matches]', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
-

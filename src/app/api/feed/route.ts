@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import getDb from '@/lib/db';
-import { seedIfEmpty } from '@/lib/seed';
+import { ensureDb } from '@/lib/seed';
 import type { Profile } from '@/types';
 
 interface RawProfile {
-  id: number;
+  id: number | bigint;
   name: string;
-  age: number;
+  age: number | bigint;
   photo: string;
   bio: string;
   city: string;
@@ -15,24 +15,34 @@ interface RawProfile {
 
 function parseProfile(raw: RawProfile): Profile {
   return {
-    ...raw,
+    id: Number(raw.id),
+    name: raw.name,
+    age: Number(raw.age),
+    photo: raw.photo,
+    bio: raw.bio,
+    city: raw.city,
     interests: JSON.parse(raw.interests) as string[],
   };
 }
 
 export async function GET(): Promise<NextResponse> {
-  seedIfEmpty();
-  const db = getDb();
+  try {
+    await ensureDb();
+    const db = getDb();
 
-  const rows = db
-    .prepare(
+    // Return profiles that user 0 has NOT yet swiped on
+    const result = await db.execute(
       `SELECT * FROM profiles
        WHERE id NOT IN (
          SELECT target_id FROM swipes WHERE swiper_id = 0
-       )`
-    )
-    .all() as RawProfile[];
+       )
+       ORDER BY id`
+    );
 
-  const profiles: Profile[] = rows.map(parseProfile);
-  return NextResponse.json({ profiles });
+    const profiles: Profile[] = (result.rows as unknown as RawProfile[]).map(parseProfile);
+    return NextResponse.json({ profiles });
+  } catch (err) {
+    console.error('[GET /api/feed]', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
