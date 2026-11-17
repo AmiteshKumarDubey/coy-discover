@@ -32,7 +32,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     await ensureDb();
     const db = getDb();
 
-    const { guestId, isNew } = resolveGuestId(req);
+    const { guestId } = resolveGuestId(req);
 
     const body = await req.json() as { targetId: number; direction: 'like' | 'pass' };
     const { targetId, direction } = body;
@@ -59,13 +59,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (profileResult.rows.length > 0) {
         const matchedProfile = parseProfile(profileResult.rows[0] as unknown as RawProfile);
         const res = NextResponse.json({ matched: true, matchedProfile });
-        if (isNew) stampGuestCookie(res, guestId);
+        // Always stamp — slides the 1-year expiry forward
+        stampGuestCookie(res, guestId);
         return res;
       }
     }
 
     const res = NextResponse.json({ matched: false });
-    if (isNew) stampGuestCookie(res, guestId);
+    // Always stamp — slides the 1-year expiry forward
+    stampGuestCookie(res, guestId);
     return res;
   } catch (err) {
     console.error('[POST /api/swipe]', err);

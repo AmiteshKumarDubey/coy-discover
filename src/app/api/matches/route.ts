@@ -32,7 +32,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     await ensureDb();
     const db = getDb();
 
-    const { guestId, isNew } = resolveGuestId(req);
+    const { guestId } = resolveGuestId(req);
 
     // Mutual match = this guest liked the profile AND the profile has incoming_like = 1.
     // One-sided incoming likes are NEVER exposed.
@@ -46,7 +46,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const matches: Profile[] = (result.rows as unknown as RawProfile[]).map(parseProfile);
     const res = NextResponse.json({ matches });
-    if (isNew) stampGuestCookie(res, guestId);
+    // Always stamp — slides the 1-year expiry forward on every visit
+    stampGuestCookie(res, guestId);
     return res;
   } catch (err) {
     console.error('[GET /api/matches]', err);

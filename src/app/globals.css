@@ -41,11 +41,14 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .app-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* Use dynamic viewport height so mobile browser chrome is excluded */
+  min-height: 100dvh;
+  min-height: 100vh; /* fallback for browsers without dvh */
 }
 .app-main {
   flex: 1;
-  padding-bottom: 72px; /* clear tab bar */
+  /* Clear fixed tab bar + iOS home-indicator safe area */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Tab Bar ── */
@@ -54,7 +57,9 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   bottom: 0; left: 0; right: 0;
   z-index: 100;
   display: flex;
-  height: 64px;
+  /* Base 64px + iOS home-indicator safe area */
+  height: calc(64px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: rgba(10,10,10,0.97);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -77,15 +82,21 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 
 /* ── Discover Page ── */
 .discover-page {
-  /* Centre the column horizontally, constrain its width */
   width: 100%;
   max-width: var(--max-card-width);
   margin: 0 auto;
   padding: 0 16px;
-  /* Fill the viewport above the tab bar */
-  min-height: calc(100vh - 64px);
+  /*
+   * Fill the visible viewport above the tab bar.
+   * dvh excludes mobile browser chrome; vh is the fallback.
+   * We subtract: 64px tab bar + safe-area-inset-bottom.
+   */
+  min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+  min-height: calc(100vh  - 64px); /* fallback */
   display: flex;
   flex-direction: column;
+  /* Prevent the page itself from scrolling */
+  overflow: hidden;
 }
 .discover-topbar {
   display: flex;
@@ -134,9 +145,11 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;    /* ← centre card horizontally inside the column */
+  align-items: center;
   justify-content: center;
-  padding-bottom: 20px;
+  /* Extra bottom padding ensures the last button doesn't touch the tab bar */
+  padding-bottom: 12px;
+  overflow: hidden;
 }
 
 /* ── Card Stack ── */
@@ -144,15 +157,41 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   position: relative;
   width: 100%;
 }
-/* Fixed-height box that holds the absolutely-positioned cards */
+/*
+ * Fixed-height box that holds the absolutely-positioned cards.
+ *
+ * The formula ensures the card + buttons + topbar always fit without
+ * overflowing into the fixed tab bar on any device:
+ *
+ *   Available space (dvh)
+ *   − 64px   tab bar
+ *   − env()  iOS safe-area
+ *   − 70px   discover topbar (title + Matches button)
+ *   − 100px  action buttons row + margin above them
+ *   − 10px   breathing room
+ *
+ * Clamped so it never exceeds 520px on large screens and never drops
+ * below 280px on tiny ones (profile still readable).
+ */
 .card-stack-inner {
   position: relative;
   width: 100%;
-  height: min(520px, 62vh);
+  height: clamp(
+    280px,
+    calc(100dvh - 64px - env(safe-area-inset-bottom, 0px) - 70px - 100px - 10px),
+    520px
+  );
+  /* vh fallback for browsers without dvh */
+  height: clamp(280px, calc(100vh - 248px), 520px);
+  height: clamp(
+    280px,
+    calc(100dvh - 64px - env(safe-area-inset-bottom, 0px) - 70px - 100px - 10px),
+    520px
+  );
 }
 /* Action buttons sit below the stack in normal flow */
 .card-stack-wrapper .action-buttons {
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 /* ── Profile Card ── */
@@ -168,9 +207,9 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .profile-card-wrap:active { cursor: grabbing; }
 
 .profile-card {
-  /* The card is a fixed-height box; everything inside it is absolutely positioned */
   position: relative;
   width: 100%;
+  height: 100%;   /* fills profile-card-wrap which fills card-stack-inner */
   border-radius: 24px;
   overflow: hidden;
   box-shadow:
@@ -289,6 +328,9 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   justify-content: center;
   align-items: center;
   gap: 28px;
+  /* Prevent buttons from being clipped */
+  flex-shrink: 0;
+  padding: 4px 0;
 }
 .action-btn {
   width: 64px;
@@ -565,3 +607,45 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 /* ── Utilities ── */
 .text-accent { color: var(--accent); }
 .fill-accent { fill: var(--accent); }
+
+/* ── Responsive: very short screens (< 680px tall, e.g. iPhone SE) ── */
+@media (max-height: 680px) {
+  .discover-topbar {
+    padding: 12px 0 8px;
+  }
+  .action-btn {
+    width: 56px;
+    height: 56px;
+  }
+  .action-buttons {
+    gap: 20px;
+  }
+  .card-stack-wrapper .action-buttons {
+    margin-top: 12px;
+  }
+  .profile-name  { font-size: 22px; }
+  .profile-bio   { -webkit-line-clamp: 1; }
+}
+
+/* ── Responsive: extremely short screens (< 580px, e.g. landscape phone) ── */
+@media (max-height: 580px) {
+  .discover-topbar {
+    padding: 8px 0 6px;
+  }
+  .action-btn {
+    width: 50px;
+    height: 50px;
+  }
+  .action-buttons {
+    gap: 16px;
+  }
+  .card-stack-wrapper .action-buttons {
+    margin-top: 8px;
+  }
+  .profile-card-info {
+    padding: 14px 14px 16px;
+  }
+  .profile-name  { font-size: 20px; margin-bottom: 1px; }
+  .profile-location { margin-bottom: 4px; }
+  .profile-bio   { display: none; }
+}

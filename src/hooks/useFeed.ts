@@ -15,7 +15,7 @@ export function useFeed(): UseFeedReturn {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/feed")
+    fetch("/api/feed", { credentials: "include" })
       .then((r) => {
         if (!r.ok) throw new Error("Failed to fetch feed");
         return r.json() as Promise<{ profiles: Profile[] }>;
@@ -30,6 +30,7 @@ export function useFeed(): UseFeedReturn {
       const res = await fetch("/api/swipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ targetId, direction }),
       });
       if (!res.ok) throw new Error("Swipe request failed");

@@ -16,7 +16,6 @@ interface SwipeCardProps {
   disabled?: boolean;
 }
 
-const CARD_HEIGHT = "min(520px, 62vh)";
 const SWIPE_THRESHOLD = 90;
 
 export default function SwipeCard({
@@ -65,7 +64,7 @@ export default function SwipeCard({
       onDragEnd={handleDragEnd}
       whileTap={disabled ? {} : { scale: 1.02 }}
     >
-      <div className="profile-card" style={{ height: CARD_HEIGHT }}>
+      <div className="profile-card" style={{ height: "100%" }}>
         {/* Photo */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

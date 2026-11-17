@@ -17,7 +17,7 @@ export default function MatchesList({ open, onClose }: MatchesListProps) {
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    fetch("/api/matches")
+    fetch("/api/matches", { credentials: "include" })
       .then((r) => r.json())
       .then((data: { matches: Profile[] }) => setMatches(data.matches))
       .catch(console.error)

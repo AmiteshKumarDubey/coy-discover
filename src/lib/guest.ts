@@ -24,8 +24,10 @@ export function resolveGuestId(req: NextRequest): { guestId: string; isNew: bool
 
 /**
  * Stamps (or refreshes) the guest cookie on a NextResponse.
- * Always call this when `isNew === true`; optionally call it on
- * every response to slide the expiry forward.
+ *
+ * Always call this on EVERY response (not just isNew) so the cookie
+ * expiry is slid forward on each visit — preventing silent expiry
+ * for active users. This is the same technique used by Tinder/Bumble.
  */
 export function stampGuestCookie(res: NextResponse, guestId: string): NextResponse {
   res.cookies.set(COOKIE_NAME, guestId, {

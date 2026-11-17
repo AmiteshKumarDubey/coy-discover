@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",   // ← enables env(safe-area-inset-*) on iOS Safari
   themeColor: "#0f0f0f",
 };
 
