@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import getDb from '@/lib/db';
 import { ensureDb } from '@/lib/seed';
+import { resolveGuestId, stampGuestCookie } from '@/lib/guest';
 import type { Profile } from '@/types';
 
 interface RawProfile {
@@ -11,36 +12,42 @@ interface RawProfile {
   bio: string;
   city: string;
   interests: string;
+  incoming_like?: number | bigint;
 }
 
 function parseProfile(raw: RawProfile): Profile {
   return {
-    id: Number(raw.id),
-    name: raw.name,
-    age: Number(raw.age),
-    photo: raw.photo,
-    bio: raw.bio,
-    city: raw.city,
-    interests: JSON.parse(raw.interests) as string[],
+    id:         Number(raw.id),
+    name:       raw.name,
+    age:        Number(raw.age),
+    photo:      raw.photo,
+    bio:        raw.bio,
+    city:       raw.city,
+    interests:  JSON.parse(raw.interests) as string[],
   };
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     await ensureDb();
     const db = getDb();
 
-    // Return profiles that user 0 has NOT yet swiped on
-    const result = await db.execute(
-      `SELECT * FROM profiles
-       WHERE id NOT IN (
-         SELECT target_id FROM swipes WHERE swiper_id = 0
-       )
-       ORDER BY id`
-    );
+    const { guestId, isNew } = resolveGuestId(req);
+
+    // Return profiles this guest has NOT yet swiped on
+    const result = await db.execute({
+      sql: `SELECT * FROM profiles
+            WHERE id NOT IN (
+              SELECT profile_id FROM swipes WHERE guest_id = ?
+            )
+            ORDER BY id`,
+      args: [guestId],
+    });
 
     const profiles: Profile[] = (result.rows as unknown as RawProfile[]).map(parseProfile);
-    return NextResponse.json({ profiles });
+    const res = NextResponse.json({ profiles });
+    if (isNew) stampGuestCookie(res, guestId);
+    return res;
   } catch (err) {
     console.error('[GET /api/feed]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

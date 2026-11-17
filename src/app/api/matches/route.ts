@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import getDb from '@/lib/db';
 import { ensureDb } from '@/lib/seed';
+import { resolveGuestId, stampGuestCookie } from '@/lib/guest';
 import type { Profile } from '@/types';
 
 interface RawProfile {
@@ -11,37 +12,42 @@ interface RawProfile {
   bio: string;
   city: string;
   interests: string;
+  incoming_like: number | bigint;
 }
 
 function parseProfile(raw: RawProfile): Profile {
   return {
-    id: Number(raw.id),
-    name: raw.name,
-    age: Number(raw.age),
-    photo: raw.photo,
-    bio: raw.bio,
-    city: raw.city,
+    id:        Number(raw.id),
+    name:      raw.name,
+    age:       Number(raw.age),
+    photo:     raw.photo,
+    bio:       raw.bio,
+    city:      raw.city,
     interests: JSON.parse(raw.interests) as string[],
   };
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     await ensureDb();
     const db = getDb();
 
-    // Strictly mutual: user 0 liked them AND they liked user 0.
+    const { guestId, isNew } = resolveGuestId(req);
+
+    // Mutual match = this guest liked the profile AND the profile has incoming_like = 1.
     // One-sided incoming likes are NEVER exposed.
-    const result = await db.execute(
-      `SELECT p.* FROM profiles p
-       INNER JOIN swipes s1
-         ON s1.swiper_id = 0 AND s1.target_id = p.id AND s1.direction = 'like'
-       INNER JOIN swipes s2
-         ON s2.swiper_id = p.id AND s2.target_id = 0 AND s2.direction = 'like'`
-    );
+    const result = await db.execute({
+      sql: `SELECT p.* FROM profiles p
+            INNER JOIN swipes s
+              ON s.guest_id = ? AND s.profile_id = p.id AND s.direction = 'like'
+            WHERE p.incoming_like = 1`,
+      args: [guestId],
+    });
 
     const matches: Profile[] = (result.rows as unknown as RawProfile[]).map(parseProfile);
-    return NextResponse.json({ matches });
+    const res = NextResponse.json({ matches });
+    if (isNew) stampGuestCookie(res, guestId);
+    return res;
   } catch (err) {
     console.error('[GET /api/matches]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

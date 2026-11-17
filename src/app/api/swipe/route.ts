@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getDb from '@/lib/db';
 import { ensureDb } from '@/lib/seed';
+import { resolveGuestId, stampGuestCookie } from '@/lib/guest';
 import type { Profile } from '@/types';
 
 interface RawProfile {
@@ -11,16 +12,17 @@ interface RawProfile {
   bio: string;
   city: string;
   interests: string;
+  incoming_like: number | bigint;
 }
 
 function parseProfile(raw: RawProfile): Profile {
   return {
-    id: Number(raw.id),
-    name: raw.name,
-    age: Number(raw.age),
-    photo: raw.photo,
-    bio: raw.bio,
-    city: raw.city,
+    id:        Number(raw.id),
+    name:      raw.name,
+    age:       Number(raw.age),
+    photo:     raw.photo,
+    bio:       raw.bio,
+    city:      raw.city,
     interests: JSON.parse(raw.interests) as string[],
   };
 }
@@ -30,6 +32,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     await ensureDb();
     const db = getDb();
 
+    const { guestId, isNew } = resolveGuestId(req);
+
     const body = await req.json() as { targetId: number; direction: 'like' | 'pass' };
     const { targetId, direction } = body;
 
@@ -37,35 +41,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
 
-    // Persist the swipe. INSERT OR IGNORE silently skips if already swiped.
+    // Persist the swipe. INSERT OR IGNORE silently skips duplicates.
     await db.execute({
-      sql: 'INSERT OR IGNORE INTO swipes (swiper_id, target_id, direction) VALUES (0, ?, ?)',
-      args: [targetId, direction],
+      sql: 'INSERT OR IGNORE INTO swipes (guest_id, profile_id, direction) VALUES (?, ?, ?)',
+      args: [guestId, targetId, direction],
     });
 
-    // Check for a mutual match — ONLY when user 0 liked the target
+    // A match occurs ONLY when:
+    //   1. This guest just liked the profile (direction === 'like')
+    //   2. The profile has incoming_like = 1 (pre-seeded mutual interest)
     if (direction === 'like') {
-      const mutualResult = await db.execute({
-        sql: `SELECT id FROM swipes
-              WHERE swiper_id = ? AND target_id = 0 AND direction = 'like'`,
+      const profileResult = await db.execute({
+        sql: 'SELECT * FROM profiles WHERE id = ? AND incoming_like = 1',
         args: [targetId],
       });
 
-      if (mutualResult.rows.length > 0) {
-        // Mutual like confirmed — fetch the profile to return it
-        const profileResult = await db.execute({
-          sql: 'SELECT * FROM profiles WHERE id = ?',
-          args: [targetId],
-        });
-
-        if (profileResult.rows.length > 0) {
-          const matchedProfile = parseProfile(profileResult.rows[0] as unknown as RawProfile);
-          return NextResponse.json({ matched: true, matchedProfile });
-        }
+      if (profileResult.rows.length > 0) {
+        const matchedProfile = parseProfile(profileResult.rows[0] as unknown as RawProfile);
+        const res = NextResponse.json({ matched: true, matchedProfile });
+        if (isNew) stampGuestCookie(res, guestId);
+        return res;
       }
     }
 
-    return NextResponse.json({ matched: false });
+    const res = NextResponse.json({ matched: false });
+    if (isNew) stampGuestCookie(res, guestId);
+    return res;
   } catch (err) {
     console.error('[POST /api/swipe]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

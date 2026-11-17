@@ -142,17 +142,24 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 /* ── Card Stack ── */
 .card-stack-wrapper {
   position: relative;
-  width: 100%;   /* inherits max-width from discover-page */
+  width: 100%;
 }
+/* Fixed-height box that holds the absolutely-positioned cards */
 .card-stack-inner {
   position: relative;
   width: 100%;
+  height: min(520px, 62vh);
+}
+/* Action buttons sit below the stack in normal flow */
+.card-stack-wrapper .action-buttons {
+  margin-top: 24px;
 }
 
 /* ── Profile Card ── */
 .profile-card-wrap {
   position: relative;
   width: 100%;
+  height: 100%;   /* fills the absolute container from CardStack */
   cursor: grab;
   user-select: none;
   touch-action: pan-y;
@@ -282,7 +289,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   justify-content: center;
   align-items: center;
   gap: 28px;
-  margin-top: 22px;
 }
 .action-btn {
   width: 64px;

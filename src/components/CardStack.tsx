@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SwipeCard from "./SwipeCard";
+import { Heart, X } from "lucide-react";
 import type { Profile, SwipeResult } from "@/types";
 
 interface CardStackProps {
@@ -18,10 +19,9 @@ export default function CardStack({
   onMatch,
   onEmpty,
 }: CardStackProps) {
-  const [swiped, setSwiped]         = useState<Set<number>>(new Set());
+  const [swiped, setSwiped]           = useState<Set<number>>(new Set());
   const [isProcessing, setProcessing] = useState(false);
-  // Track the exit direction so the card flies off the right side
-  const lastDirRef                  = useRef<"like" | "pass">("like");
+  const lastDirRef                    = useRef<"like" | "pass">("like");
 
   const remaining = profiles.filter((p) => !swiped.has(p.id));
   const visible   = remaining.slice(0, 3);
@@ -42,7 +42,6 @@ export default function CardStack({
       }
     } catch (err) {
       console.error("Swipe error:", err);
-      // Roll back optimistic removal on error
       setSwiped((prev) => {
         const next = new Set(prev);
         next.delete(top.id);
@@ -58,15 +57,9 @@ export default function CardStack({
   }
 
   return (
-    /* Wrapper gives height: card + action buttons */
-    <div
-      className="card-stack-wrapper"
-      style={{ minHeight: "calc(min(520px, 62vh) + 110px)" }}
-    >
-      <div
-        className="card-stack-inner"
-        style={{ height: "min(520px, 62vh)" }}
-      >
+    <div className="card-stack-wrapper">
+      {/* ── Card area (stacked, absolutely positioned children) ── */}
+      <div className="card-stack-inner">
         <AnimatePresence>
           {visible.map((profile, index) => (
             <motion.div
@@ -96,6 +89,26 @@ export default function CardStack({
             </motion.div>
           ))}
         </AnimatePresence>
+      </div>
+
+      {/* ── Action buttons — live OUTSIDE the absolute-positioned stack ── */}
+      <div className="action-buttons">
+        <button
+          className={`action-btn action-btn-pass${isProcessing ? " btn-disabled" : ""}`}
+          onClick={() => handleSwipe("pass")}
+          disabled={isProcessing}
+          aria-label="Pass"
+        >
+          <X size={28} color="#f87171" strokeWidth={2.5} />
+        </button>
+        <button
+          className={`action-btn action-btn-like${isProcessing ? " btn-disabled" : ""}`}
+          onClick={() => handleSwipe("like")}
+          disabled={isProcessing}
+          aria-label="Like"
+        >
+          <Heart size={28} color="#fff" fill="#fff" />
+        </button>
       </div>
     </div>
   );
