@@ -37,3 +37,4 @@ export function stampGuestCookie(res: NextResponse, guestId: string): NextRespon
   });
   return res;
 }
+
