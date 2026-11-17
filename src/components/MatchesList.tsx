@@ -1,29 +1,23 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
 import type { Profile } from "@/types";
 import { X, Heart } from "lucide-react";
 
 interface MatchesListProps {
   open: boolean;
   onClose: () => void;
+  /** Live matches list owned by useMatches hook in DiscoverPage */
+  matches: Profile[];
+  loading: boolean;
 }
 
-export default function MatchesList({ open, onClose }: MatchesListProps) {
-  const [matches, setMatches] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    fetch("/api/matches", { credentials: "include" })
-      .then((r) => r.json())
-      .then((data: { matches: Profile[] }) => setMatches(data.matches))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [open]);
-
+export default function MatchesList({
+  open,
+  onClose,
+  matches,
+  loading,
+}: MatchesListProps) {
   return (
     <AnimatePresence>
       {open && (

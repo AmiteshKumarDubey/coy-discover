@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Heart } from "lucide-react";
 import { useFeed } from "@/hooks/useFeed";
+import { useMatches } from "@/hooks/useMatches";
 import CardStack from "@/components/CardStack";
 import MatchModal from "@/components/MatchModal";
 import MatchesList from "@/components/MatchesList";
@@ -11,10 +12,11 @@ import type { Profile, SwipeResult } from "@/types";
 
 export default function DiscoverPage() {
   const { profiles, loading, error, submitSwipe } = useFeed();
+  const { matches, matchCount, loadingMatches, addMatch, refreshMatches } = useMatches();
+
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
-  const [showMatches, setShowMatches] = useState(false);
-  const [isEmpty, setIsEmpty] = useState(false);
-  const [matchCount, setMatchCount] = useState(0);
+  const [showMatches, setShowMatches]       = useState(false);
+  const [isEmpty, setIsEmpty]               = useState(false);
 
   async function handleSwipe(
     profileId: number,
@@ -24,8 +26,13 @@ export default function DiscoverPage() {
   }
 
   function handleMatch(profile: Profile) {
+    addMatch(profile);        // adds to the shared list + updates badge
     setMatchedProfile(profile);
-    setMatchCount((c) => c + 1);
+  }
+
+  function handleOpenMatches() {
+    refreshMatches();         // pull fresh data from DB before opening panel
+    setShowMatches(true);
   }
 
   /* ── Loading ── */
@@ -55,10 +62,7 @@ export default function DiscoverPage() {
       <div className="discover-topbar">
         <span className="discover-title">Discover</span>
 
-        <button
-          className="matches-btn"
-          onClick={() => setShowMatches(true)}
-        >
+        <button className="matches-btn" onClick={handleOpenMatches}>
           <Heart size={14} color="var(--accent)" fill="var(--accent)" />
           <span>Matches</span>
           {matchCount > 0 && (
@@ -70,7 +74,7 @@ export default function DiscoverPage() {
       {/* ── Main content ── */}
       <div className="discover-content">
         {isEmpty || profiles.length === 0 ? (
-          <EmptyState onViewMatches={() => setShowMatches(true)} />
+          <EmptyState onViewMatches={handleOpenMatches} />
         ) : (
           <CardStack
             profiles={profiles}
@@ -89,8 +93,13 @@ export default function DiscoverPage() {
         />
       )}
 
-      {/* ── Matches panel ── */}
-      <MatchesList open={showMatches} onClose={() => setShowMatches(false)} />
+      {/* ── Matches panel — receives live list from shared hook ── */}
+      <MatchesList
+        open={showMatches}
+        onClose={() => setShowMatches(false)}
+        matches={matches}
+        loading={loadingMatches}
+      />
     </div>
   );
 }
