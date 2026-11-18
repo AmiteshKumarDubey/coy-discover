@@ -17,6 +17,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/* Warm up the TCP/TLS connection to picsum.photos before images load */}
+        <link rel="preconnect" href="https://picsum.photos" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://picsum.photos" />
+        {/* Fastly CDN that picsum.photos actually serves from */}
+        <link rel="preconnect" href="https://fastly.picsum.photos" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://fastly.picsum.photos" />
+      </head>
       <body>
         <div className="app-shell">
           <main className="app-main">{children}</main>

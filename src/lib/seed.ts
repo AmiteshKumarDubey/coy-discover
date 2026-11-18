@@ -4,7 +4,8 @@ import getDb from './db';
 // Bump this string to trigger an automatic migration on next cold-start.
 // v1 → old schema (swiper_id INTEGER, hardcoded user 0)
 // v2 → current (guest_id TEXT UUID, profile_id INTEGER, incoming_like flag)
-const SCHEMA_VERSION = '2';
+// v3 → added indexes for query performance
+const SCHEMA_VERSION = '3';
 
 // ── Profile data ─────────────────────────────────────────────────────────────
 interface ProfileRow {
@@ -54,20 +55,26 @@ const INCOMING_LIKE_IDS = new Set([5, 9, 13, 17, 20, 23, 25, 28, 30, 32]);
 
 // ── Singleton guard ──────────────────────────────────────────────────────────
 let initPromise: Promise<void> | null = null;
+// Set to true once _init() completes — subsequent calls within the same
+// warm serverless invocation resolve synchronously without any await.
+let dbReady = false;
 
 /**
  * Ensures schema + seed are ready. Safe to call on every request.
- * - First call: runs migration + seed, caches the promise
- * - Subsequent calls in the same process: returns the cached promise instantly
- * - New serverless invocations: re-runs the check (fast path after first deploy)
+ * - First call in a process: runs migration + seed, caches the promise
+ * - Subsequent warm calls in the same process: resolves instantly (no await)
+ * - New cold-start invocations: re-runs the full check exactly once
  */
 export async function ensureDb(): Promise<void> {
+  if (dbReady) return;          // hot path: zero overhead after first success
   if (initPromise) return initPromise;
-  initPromise = _init().catch((err) => {
-    // Reset on error so the next request retries
-    initPromise = null;
-    throw err;
-  });
+  initPromise = _init()
+    .then(() => { dbReady = true; })
+    .catch((err) => {
+      // Reset on error so the next request retries
+      initPromise = null;
+      throw err;
+    });
   return initPromise;
 }
 
@@ -115,6 +122,15 @@ async function _init(): Promise<void> {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(guest_id, profile_id)
       );
+
+      CREATE INDEX IF NOT EXISTS idx_swipes_guest
+        ON swipes (guest_id, profile_id);
+
+      CREATE INDEX IF NOT EXISTS idx_swipes_guest_like
+        ON swipes (guest_id, direction);
+
+      CREATE INDEX IF NOT EXISTS idx_profiles_incoming
+        ON profiles (incoming_like);
     `);
 
     await db.execute({

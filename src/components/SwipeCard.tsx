@@ -65,13 +65,16 @@ export default function SwipeCard({
       whileTap={disabled ? {} : { scale: 1.02 }}
     >
       <div className="profile-card" style={{ height: "100%" }}>
-        {/* Photo */}
+        {/* Photo — eager + high-priority on the top card for fast LCP */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="profile-card-img"
           src={profile.photo}
           alt={profile.name}
           draggable={false}
+          loading="eager"
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          fetchPriority={"high" as any}
         />
 
         {/* Dark gradient overlay */}

@@ -32,7 +32,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     await ensureDb();
     const db = getDb();
 
-    const { guestId } = resolveGuestId(req);
+    const { guestId, isNew } = resolveGuestId(req);
 
     // Return profiles this guest has NOT yet swiped on
     const result = await db.execute({
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const profiles: Profile[] = (result.rows as unknown as RawProfile[]).map(parseProfile);
     const res = NextResponse.json({ profiles });
     // Always stamp — slides the 1-year expiry forward on every visit
-    stampGuestCookie(res, guestId);
+    stampGuestCookie(res, guestId, isNew);
     return res;
   } catch (err) {
     console.error('[GET /api/feed]', err);

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div
@@ -18,6 +20,10 @@ export default function Home() {
       <p style={{ color: "#404050", fontSize: "13px", textAlign: "center", maxWidth: "240px" }}>
         This is a placeholder. Head to Discover to start swiping!
       </p>
+      {/* Invisible prefetch link: Next.js will preload the /discover route bundle */}
+      <Link href="/discover" prefetch style={{ display: "none" }} aria-hidden="true" tabIndex={-1}>
+        prefetch
+      </Link>
     </div>
   );
 }

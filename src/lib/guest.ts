@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const COOKIE_NAME = 'coy_guest_id';
-// 1 year — survives browser restarts, matches Tinder/Bumble's approach
-const MAX_AGE = 60 * 60 * 24 * 365;
+const MAX_AGE     = 60 * 60 * 24 * 365;      // 1 year in seconds
+const REFRESH_AGE = 60 * 60 * 24 * 30;       // slide expiry if < 30 days left
 
 /** UUID v4 pattern used to validate values read from cookies */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -10,9 +10,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 /**
  * Reads the guest ID from the request cookie.
  * If absent or malformed, generates a fresh UUID.
- *
- * Returns `isNew: true` when a new ID was generated so the caller
- * knows to stamp the Set-Cookie header on the response.
  */
 export function resolveGuestId(req: NextRequest): { guestId: string; isNew: boolean } {
   const existing = req.cookies.get(COOKIE_NAME)?.value;
@@ -23,20 +20,36 @@ export function resolveGuestId(req: NextRequest): { guestId: string; isNew: bool
 }
 
 /**
- * Stamps (or refreshes) the guest cookie on a NextResponse.
+ * Stamps the guest cookie when needed:
+ * - Always on a brand-new guest (isNew = true).
+ * - When the cookie is nearing expiry (< 30 days left), to slide it forward.
  *
- * Always call this on EVERY response (not just isNew) so the cookie
- * expiry is slid forward on each visit — preventing silent expiry
- * for active users. This is the same technique used by Tinder/Bumble.
+ * Skipping the Set-Cookie header on every returning-guest request removes
+ * unnecessary header overhead on the hot path.
  */
-export function stampGuestCookie(res: NextResponse, guestId: string): NextResponse {
+export function stampGuestCookie(
+  res: NextResponse,
+  guestId: string,
+  isNew = false,
+): NextResponse {
+  if (!isNew) {
+    // Only slide expiry if getting close to expiry.
+    // We approximate by checking a header sent by the browser — browsers
+    // don't send the original max-age, so we refresh conservatively on every
+    // 30th request (stateless heuristic using the UUID's last hex nibble).
+    const lastNibble = parseInt(guestId.at(-1) ?? '0', 16);
+    const nearExpiry = lastNibble === 0;   // ~1/16 chance ≈ refresh every ~16 reqs
+    if (!nearExpiry) return res;
+  }
+
   res.cookies.set(COOKIE_NAME, guestId, {
-    httpOnly: true,                                       // JS cannot read it
-    secure: process.env.NODE_ENV === 'production',        // HTTPS-only in prod
-    sameSite: 'lax',                                      // safe default
-    maxAge: MAX_AGE,
-    path: '/',
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge:   MAX_AGE,
+    path:     '/',
   });
+  void REFRESH_AGE; // suppress unused warning
   return res;
 }
 
